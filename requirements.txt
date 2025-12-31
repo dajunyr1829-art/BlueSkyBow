@@ -1,6 +1,4 @@
---index-url https://pypi.org/simple/
---trusted-host pypi.org
-flask==3.0.3
-requests==2.32.3
-gunicorn==22.0.0
-atproto-core==0.11.12
+flask
+atproto
+requests
+gunicorn

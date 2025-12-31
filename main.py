@@ -60,24 +60,43 @@ def post_to_bluesky():
     ]
     caption = random.choice(captions)
 
-    # Safe image fetching
+    # Improved image fetching - almost always gets an image
     image_url = None
     try:
+        # Use a very broad fallback if specific tag fails
+        search_tags = tags_str
         if source == "e621":
-            url = f"https://e621.net/posts.json?tags={tags_str}&limit=100"
+            url = f"https://e621.net/posts.json?tags={search_tags}&limit=100"
             headers = {'User-Agent': 'BlueskyNSFWBot/1.0'}
             resp = requests.get(url, headers=headers, timeout=20)
-            if resp.status_code == 200 and resp.json().get('posts'):
-                image_url = random.choice(resp.json()['posts'])['file']['url']
-        else:
-            url = f"https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags={tags_str}&limit=100"
+            if resp.status_code == 200:
+                data = resp.json()
+                posts = data.get('posts', [])
+                if posts:
+                    image_url = random.choice(posts)['file']['url']
+                else:
+                    # Fallback to very safe tag
+                    fallback_resp = requests.get("https://e621.net/posts.json?tags=rating:explicit&limit=100", headers=headers, timeout=20)
+                    if fallback_resp.status_code == 200:
+                        fallback_posts = fallback_resp.json().get('posts', [])
+                        if fallback_posts:
+                            image_url = random.choice(fallback_posts)['file']['url']
+        else:  # rule34
+            url = f"https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags={search_tags}&limit=100"
             resp = requests.get(url, timeout=20)
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, list) and data:
                     image_url = random.choice(data)['file_url']
+                else:
+                    # Fallback to very safe tag
+                    fallback_resp = requests.get("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=rating:explicit&limit=100", timeout=20)
+                    if fallback_resp.status_code == 200:
+                        fallback_data = fallback_resp.json()
+                        if isinstance(fallback_data, list) and fallback_data:
+                            image_url = random.choice(fallback_data)['file_url']
     except Exception as e:
-        print(f"Image fetch failed: {e}")
+        print(f"Image fetch failed (will post text only): {e}")
 
     # Upload image if we have one
     embed = None
@@ -88,9 +107,9 @@ def post_to_bluesky():
             images = [{'alt': 'Explicit NSFW content', 'image': blob}]
             embed = {'$type': 'app.bsky.embed.images', 'images': images}
         except Exception as e:
-            print(f"Image upload failed: {e}")
+            print(f"Image upload failed (posting text only): {e}")
 
-    # Send the post (high-level method handles NSFW label automatically for adult content)
+    # Send the post - simple high-level method (auto-handles NSFW labeling)
     client.send_post(text=caption, embed=embed)
 
 if __name__ == '__main__':

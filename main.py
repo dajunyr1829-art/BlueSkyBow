@@ -79,39 +79,36 @@ def post_to_bluesky():
             resp = requests.get(url, timeout=20)
             if resp.status_code == 200:
                 data = resp.json()
-                if isinstance(data, list) and data:
+                if isinstance(data, list) and 
                     image_url = random.choice(data)['file_url']
             if not image_url:
                 fallback = requests.get("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=rating:explicit&limit=100", timeout=20)
                 if fallback.status_code == 200:
                     fallback_data = fallback.json()
-                    if isinstance(fallback_data, list) and fallback_data:
+                    if isinstance(fallback_data, list) and fallback_
                         image_url = random.choice(fallback_data)['file_url']
     except Exception as e:
         print(f"Image fetch failed (text-only post): {e}")
 
-    # Raw dict embed format (this makes images show correctly with send_post)
-    embed = None
+    # Use the built-in send_image method - handles all blob/embed logic automatically
     if image_url:
         try:
             img_data = requests.get(image_url, timeout=30).content
-            blob = client.upload_blob(img_data)
-            embed = {
-                '$type': 'app.bsky.embed.images',
-                'images': [
-                    {
-                        'alt': 'Explicit NSFW content 🥵',
-                        'image': blob.blob,
-                    }
-                ]
-            }
+            client.send_image(
+                text=caption,
+                image=img_data,
+                image_alt='Explicit NSFW content 🥵',
+            )
+            print("Image post sent successfully!")
+            return  # Exit early - image posted successfully
         except Exception as e:
-            print(f"Image upload failed (text-only post): {e}")
+            print(f"Image upload failed (falling back to text-only post): {e}")
 
-    # Send the post (high-level, auto NSFW labels adult content)
-    client.send_post(text=caption, embed=embed)
+    # Fallback: text-only post if no image or image upload failed
+    print("Posting text-only as fallback")
+    client.send_post(text=caption)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
-    
+

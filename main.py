@@ -1,6 +1,7 @@
 import random
 import requests
-from atproto import Client, models
+from atproto import Client, models, ids
+from atproto_client.models.com_atproto_repo_create_record import Data as CreateRecordData
 import os
 from flask import Flask
 
@@ -22,9 +23,8 @@ def post_to_bluesky():
     client = Client()
     client.login(os.environ['HANDLE'], os.environ['APP_PASSWORD'])
 
-    # Heavy bias toward Rule34 for real porn + hentai/futa/femboy
+    # Heavy bias toward Rule34 for real porn + variety
     sources = ["rule34"] * 8 + ["e621", "rule34"]
-
     source = random.choice(sources)
 
     rule34_tags = [
@@ -91,24 +91,31 @@ def post_to_bluesky():
         except Exception as e:
             print(f"Image upload failed: {e}")
 
-    # Build record with conditional embed + correct porn label
+    # Build the post record
     record_kwargs = {
         "text": caption,
         "created_at": client.get_current_time_iso(),
-        "labels": models.ComAtprotoLabelDefs.SelfLabels(
-            values=[models.ComAtprotoLabelDefs.SelfLabel(val="porn")]
-        ),
     }
     if embed:
         record_kwargs["embed"] = embed
 
     record = models.AppBskyFeedPost.Record(**record_kwargs)
 
-    client.com.atproto.repo.create_record(
+    # Self-label as porn (always for NSFW safety)
+    self_labels = models.ComAtprotoLabelDefs.SelfLabels(
+        values=[models.ComAtprotoLabelDefs.SelfLabel(val="porn")]
+    )
+    record.labels = self_labels
+
+    # Create the Data object for create_record
+    create_data = CreateRecordData(
         repo=client.me.did,
-        collection='app.bsky.feed.post',
+        collection=ids.AppBskyFeedPost,
         record=record
     )
+
+    # Send the post
+    client.com.atproto.repo.create_record(create_data)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

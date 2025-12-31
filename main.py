@@ -14,72 +14,92 @@ def home():
 def trigger_post():
     try:
         post_to_bluesky()
-        return "Posted to Bluesky successfully!"
+        return "Posted to Bluesky successfully! 🔥"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error during post: {str(e)}"
 
 def post_to_bluesky():
     client = Client()
     client.login(os.environ['HANDLE'], os.environ['APP_PASSWORD'])
 
-    # Define sources FIRST
-    sources = ["rule34"] * 8 + ["e621", "rule34"]  # Heavy on Rule34 for real porn
+    # Heavy bias toward Rule34 (has tons of real porn + hentai/futa/femboy)
+    sources = ["rule34"] * 8 + ["e621", "rule34"]
 
     source = random.choice(sources)
 
-    # Tags
+    # Tags focused on real + explicit content
     rule34_tags = [
         "rating:explicit",
         "real_porn rating:explicit",
         "pornstar rating:explicit",
+        "amateur rating:explicit",
         "blowjob rating:explicit",
         "anal rating:explicit",
         "milf rating:explicit",
-        "amateur rating:explicit",
         "big_breasts rating:explicit",
         "cumshot rating:explicit",
         "futanari rating:explicit",
         "femboy rating:explicit",
+        "trap rating:explicit",
     ]
-    anime_tags = [
+
+    e621_tags = [
         "rating:explicit",
-        "furry anthro rating:explicit",
+        "furry rating:explicit",
+        "anthro rating:explicit",
         "futanari rating:explicit",
         "femboy rating:explicit",
+        "yiff rating:explicit",
     ]
-    tags = random.choice(rule34_tags if source == "rule34" else anime_tags)
 
-    # Rest of the fetch/post code...
+    tags = random.choice(rule34_tags if source == "rule34" else e621_tags)
+    tags_str = tags.replace(" ", "+")
 
-    # Fetch – remove realbooru entirely
-    tags_str = tags.replace(' ', '+')
+    # Promotional captions
+    captions = [
+        "Real heat dropping hard 🥵 #nsfw #porn #realporn #adult\n\nJoin my community for more: https://discord.com/invite/NuP2QQvsQM\nPremium unlocks extra NSFW channels + free promo (X links only)!",
+        "Steamy action you need right now 🔥 #explicit #hentai #futa #furry\n\nDiscord: https://discord.com/invite/NuP2QQvsQM\nGo Premium for more channels and self-promo perks!",
+        "Can't look away from this one 😏 #nsfw #femboy #futanari #anthro\n\nInvite: https://discord.com/invite/NuP2QQvsQM\nPremium = unlimited spicy access + free spots!",
+    ]
+    caption = random.choice(captions)
+
+    # Safe image fetching
     image_url = None
-    if source == "e621":
-        url = f"https://e621.net/posts.json?tags={tags_str}+rating:explicit&limit=100"
-        headers = {'User-Agent': 'BlueskyBot/1.0'}
-        resp = requests.get(url, headers=headers)
-        if resp.ok and resp.json().get('posts'):
-            image_url = random.choice(resp.json()['posts'])['file']['url']
-    else:  # rule34 only now
-        base = "https://api.rule34.xxx/index.php"
-        url = f"{base}?page=dapi&s=post&q=index&json=1&tags={tags_str}&limit=100"
-        resp = requests.get(url)
-        if resp.ok and resp.json():
-            image_url = random.choice(resp.json())['file_url']
+    try:
+        if source == "e621":
+            url = f"https://e621.net/posts.json?tags={tags_str}&limit=100"
+            headers = {'User-Agent': 'BlueskyNSFWBot/1.0'}
+            resp = requests.get(url, headers=headers, timeout=20)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('posts'):
+                    posts = data['posts']
+                    if posts:
+                        image_url = random.choice(posts)['file']['url']
+        else:  # rule34
+            url = f"https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags={tags_str}&limit=100"
+            resp = requests.get(url, timeout=20)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and data:
+                    image_url = random.choice(data)['file_url']
+    except Exception as e:
+        print(f"Image fetch failed: {e}")
 
-    # ... (rest of embed/post code stays the same)
-
+    # Upload image if we got one
     embed = None
     if image_url:
         try:
             img_data = requests.get(image_url, timeout=30).content
             blob = client.upload_blob(img_data).blob
             embed = models.AppBskyEmbedImages.Main(
-                images=[models.AppBskyEmbedImages.Image(alt='Explicit adult content', image=blob)]
+                images=[models.AppBskyEmbedImages.Image(alt="Explicit NSFW content", image=blob)]
             )
         except Exception as e:
-            print(f"Image failed: {e}")
+            print(f"Image upload failed: {e}")
+            embed = None  # Fall back to text-only
 
+    # Create and send post with NSFW label
     post = models.AppBskyFeedPost.Main(
         text=caption,
         created_at=client.get_current_time_iso(),

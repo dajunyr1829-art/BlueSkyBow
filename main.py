@@ -1,6 +1,6 @@
 import random
 import requests
-from atproto import Client, models, ids
+from atproto import Client, models
 import os
 from flask import Flask
 
@@ -90,34 +90,26 @@ def post_to_bluesky():
     except Exception as e:
         print(f"Image fetch failed (text-only post): {e}")
 
-    # Build embed with model (for low-level create_record)
+    # Raw dict embed format with blob.blob (fixes images)
     embed = None
     if image_url:
         try:
             img_data = requests.get(image_url, timeout=30).content
-            upload = client.upload_blob(img_data)
-            images = [models.AppBskyEmbedImages.Image(alt="Explicit NSFW content 🥵", image=upload.blob)]
-            embed = models.AppBskyEmbedImages.Main(images=images)
+            blob = client.upload_blob(img_data)
+            embed = {
+                '$type': 'app.bsky.embed.images',
+                'images': [
+                    {
+                        'alt': 'Explicit NSFW content 🥵',
+                        'image': blob.blob,  # Correct inner blob dict
+                    }
+                ]
+            }
         except Exception as e:
             print(f"Image upload failed (text-only post): {e}")
 
-    # Low-level create_record (this supports images reliably)
-    record = models.AppBskyFeedPost.Record(
-        text=caption,
-        created_at=client.get_current_time_iso(),
-        embed=embed,
-    )
-
-    # Add NSFW self-label
-    record.labels = models.ComAtprotoLabelDefs.SelfLabels(
-        values=[models.ComAtprotoLabelDefs.SelfLabel(val="porn")]
-    )
-
-    client.com.atproto.repo.create_record(
-        repo=client.me.did,
-        collection=ids.AppBskyFeedPost,
-        record=record
-    )
+    # Send the post (high-level with raw embed dict)
+    client.send_post(text=caption, embed=embed)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

@@ -22,7 +22,7 @@ def post_to_bluesky():
     client = Client()
     client.login(os.environ['HANDLE'], os.environ['APP_PASSWORD'])
 
-    # Heavy bias toward Rule34 (real porn + hentai/futa/femboy)
+    # Heavy bias toward Rule34 (tons of real porn + hentai/futa/femboy)
     sources = ["rule34"] * 8 + ["e621", "rule34"]
 
     source = random.choice(sources)
@@ -86,7 +86,7 @@ def post_to_bluesky():
     except Exception as e:
         print(f"Image fetch failed: {e}")
 
-    # Upload image if available
+    # Prepare embed if we have an image
     embed = None
     if image_url:
         try:
@@ -97,16 +97,20 @@ def post_to_bluesky():
             )
         except Exception as e:
             print(f"Image upload failed: {e}")
+            embed = None
 
-    # Create record (fixed: use .Record, not .Main)
-    record = models.AppBskyFeedPost.Record(
-        text=caption,
-        created_at=client.get_current_time_iso(),
-        labels=models.ComAtprotoLabelDefs.SelfLabels(
-            values=[models.ComAtprotoLabelDefs.LabelValue(value='porn')]
+    # Create the post record (do NOT pass embed=None)
+    record_kwargs = {
+        "text": caption,
+        "created_at": client.get_current_time_iso(),
+        "labels": models.ComAtprotoLabelDefs.SelfLabels(
+            values=[models.ComAtprotoLabelDefs.LabelValue(val='porn')]
         ),
-        embed=embed,
-    )
+    }
+    if embed:
+        record_kwargs["embed"] = embed
+
+    record = models.AppBskyFeedPost.Record(**record_kwargs)
 
     # Send the post
     client.com.atproto.repo.create_record(

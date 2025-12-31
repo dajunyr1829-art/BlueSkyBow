@@ -22,17 +22,15 @@ def post_to_bluesky():
     client = Client()
     client.login(os.environ['HANDLE'], os.environ['APP_PASSWORD'])
 
-    
+    # Define sources FIRST
+    sources = ["rule34"] * 8 + ["e621", "rule34"]  # Heavy on Rule34 for real porn
+
     source = random.choice(sources)
-# ... (keep imports, Flask routes, post_to_bluesky function start) ...
 
-    # Heavily biased to Rule34 (has real porn + hentai/futa/femboy)
-    sources = ["rule34"] * 8 + ["e621", "rule34"]  # More variety, no realbooru
-
-    # Tags focused on real or realistic explicit (Rule34 has real uploads too)
+    # Tags
     rule34_tags = [
         "rating:explicit",
-        "real_porn rating:explicit",  # Forces real if available
+        "real_porn rating:explicit",
         "pornstar rating:explicit",
         "blowjob rating:explicit",
         "anal rating:explicit",
@@ -43,13 +41,15 @@ def post_to_bluesky():
         "futanari rating:explicit",
         "femboy rating:explicit",
     ]
-    anime_tags = [  # For e621 furry
+    anime_tags = [
         "rating:explicit",
         "furry anthro rating:explicit",
         "futanari rating:explicit",
         "femboy rating:explicit",
     ]
     tags = random.choice(rule34_tags if source == "rule34" else anime_tags)
+
+    # Rest of the fetch/post code...
 
     # Fetch – remove realbooru entirely
     tags_str = tags.replace(' ', '+')

@@ -22,33 +22,36 @@ def post_to_bluesky():
     client = Client()
     client.login(os.environ['HANDLE'], os.environ['APP_PASSWORD'])
 
-    sources = ["realbooru"] * 8 + ["rule34", "e621"]
+    
     source = random.choice(sources)
+# ... (keep imports, Flask routes, post_to_bluesky function start) ...
 
-    real_tags = [
+    # Heavily biased to Rule34 (has real porn + hentai/futa/femboy)
+    sources = ["rule34"] * 8 + ["e621", "rule34"]  # More variety, no realbooru
+
+    # Tags focused on real or realistic explicit (Rule34 has real uploads too)
+    rule34_tags = [
         "rating:explicit",
+        "real_porn rating:explicit",  # Forces real if available
+        "pornstar rating:explicit",
         "blowjob rating:explicit",
         "anal rating:explicit",
         "milf rating:explicit",
         "amateur rating:explicit",
         "big_breasts rating:explicit",
         "cumshot rating:explicit",
+        "futanari rating:explicit",
+        "femboy rating:explicit",
     ]
-    anime_tags = [
-        "futanari solo rating:explicit",
-        "femboy anal rating:explicit",
+    anime_tags = [  # For e621 furry
+        "rating:explicit",
         "furry anthro rating:explicit",
-        "hentai futanari rating:explicit",
+        "futanari rating:explicit",
+        "femboy rating:explicit",
     ]
-    tags = random.choice(real_tags if source == "realbooru" else anime_tags)
+    tags = random.choice(rule34_tags if source == "rule34" else anime_tags)
 
-    captions = [
-        "Real heat you can't handle 🥵 #nsfw #porn #adult\n\nJoin my community: https://discord.com/invite/NuP2QQvsQM\nPremium = more exclusive NSFW channels + free promo (X links only)!",
-        "Fresh real action dropping 🔥 #realporn #nsfw #explicit\n\nDiscord: https://discord.com/invite/NuP2QQvsQM\nUpgrade to Premium for extra channels!",
-        "Authentic spice incoming 😏 #porn #hot #nsfw\n\nInvite: https://discord.com/invite/NuP2QQvsQM\nPremium members get free self-promo perks.",
-    ]
-    caption = random.choice(captions)
-
+    # Fetch – remove realbooru entirely
     tags_str = tags.replace(' ', '+')
     image_url = None
     if source == "e621":
@@ -57,12 +60,14 @@ def post_to_bluesky():
         resp = requests.get(url, headers=headers)
         if resp.ok and resp.json().get('posts'):
             image_url = random.choice(resp.json()['posts'])['file']['url']
-    else:
-        base = "https://api.realbooru.com/index.php" if source == "realbooru" else "https://api.rule34.xxx/index.php"
+    else:  # rule34 only now
+        base = "https://api.rule34.xxx/index.php"
         url = f"{base}?page=dapi&s=post&q=index&json=1&tags={tags_str}&limit=100"
         resp = requests.get(url)
         if resp.ok and resp.json():
             image_url = random.choice(resp.json())['file_url']
+
+    # ... (rest of embed/post code stays the same)
 
     embed = None
     if image_url:

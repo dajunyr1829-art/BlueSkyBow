@@ -1,7 +1,6 @@
 import random
 import requests
-from atproto import Client, models, ids
-from atproto_client.models.com_atproto_repo_create_record import Data as CreateRecordData
+from atproto import Client
 import os
 from flask import Flask
 
@@ -80,42 +79,19 @@ def post_to_bluesky():
     except Exception as e:
         print(f"Image fetch failed: {e}")
 
+    # Upload image if we have one
     embed = None
     if image_url:
         try:
             img_data = requests.get(image_url, timeout=30).content
             blob = client.upload_blob(img_data).blob
-            embed = models.AppBskyEmbedImages.Main(
-                images=[models.AppBskyEmbedImages.Image(alt="Explicit NSFW content", image=blob)]
-            )
+            images = [{'alt': 'Explicit NSFW content', 'image': blob}]
+            embed = {'$type': 'app.bsky.embed.images', 'images': images}
         except Exception as e:
             print(f"Image upload failed: {e}")
 
-    # Build the post record
-    record_kwargs = {
-        "text": caption,
-        "created_at": client.get_current_time_iso(),
-    }
-    if embed:
-        record_kwargs["embed"] = embed
-
-    record = models.AppBskyFeedPost.Record(**record_kwargs)
-
-    # Self-label as porn (always for NSFW safety)
-    self_labels = models.ComAtprotoLabelDefs.SelfLabels(
-        values=[models.ComAtprotoLabelDefs.SelfLabel(val="porn")]
-    )
-    record.labels = self_labels
-
-    # Create the Data object for create_record
-    create_data = CreateRecordData(
-        repo=client.me.did,
-        collection=ids.AppBskyFeedPost,
-        record=record
-    )
-
-    # Send the post
-    client.com.atproto.repo.create_record(create_data)
+    # Send the post (high-level method handles NSFW label automatically for adult content)
+    client.send_post(text=caption, embed=embed)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

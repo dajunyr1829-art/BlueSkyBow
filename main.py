@@ -22,12 +22,12 @@ def post_to_bluesky():
     client = Client()
     client.login(os.environ['HANDLE'], os.environ['APP_PASSWORD'])
 
-    # Heavy bias toward Rule34 (has tons of real porn + hentai/futa/femboy)
+    # Heavy bias toward Rule34 (real porn + hentai/futa/femboy)
     sources = ["rule34"] * 8 + ["e621", "rule34"]
 
     source = random.choice(sources)
 
-    # Tags focused on real + explicit content
+    # Tags focused on real + explicit
     rule34_tags = [
         "rating:explicit",
         "real_porn rating:explicit",
@@ -86,7 +86,7 @@ def post_to_bluesky():
     except Exception as e:
         print(f"Image fetch failed: {e}")
 
-    # Upload image if we got one
+    # Upload image if available
     embed = None
     if image_url:
         try:
@@ -97,10 +97,9 @@ def post_to_bluesky():
             )
         except Exception as e:
             print(f"Image upload failed: {e}")
-            embed = None  # Fall back to text-only
 
-    # Create and send post with NSFW label
-    post = models.AppBskyFeedPost.Main(
+    # Create record (fixed: use .Record, not .Main)
+    record = models.AppBskyFeedPost.Record(
         text=caption,
         created_at=client.get_current_time_iso(),
         labels=models.ComAtprotoLabelDefs.SelfLabels(
@@ -109,10 +108,11 @@ def post_to_bluesky():
         embed=embed,
     )
 
+    # Send the post
     client.com.atproto.repo.create_record(
         repo=client.me.did,
         collection='app.bsky.feed.post',
-        record=post
+        record=record
     )
 
 if __name__ == '__main__':

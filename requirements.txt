@@ -1,0 +1,4 @@
+flask
+atproto
+requests
+gunicorn

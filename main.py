@@ -1,6 +1,6 @@
 import random
 import requests
-from atproto import Client, models
+from atproto import Client
 import os
 from flask import Flask
 
@@ -71,7 +71,6 @@ def post_to_bluesky():
             if resp.status_code == 200 and resp.json().get('posts'):
                 image_url = random.choice(resp.json()['posts'])['file']['url']
             if not image_url:
-                # Fallback
                 fallback = requests.get("https://e621.net/posts.json?tags=rating:explicit&limit=100", headers=headers, timeout=20)
                 if fallback.status_code == 200 and fallback.json().get('posts'):
                     image_url = random.choice(fallback.json()['posts'])['file']['url']
@@ -83,7 +82,6 @@ def post_to_bluesky():
                 if isinstance(data, list) and data:
                     image_url = random.choice(data)['file_url']
             if not image_url:
-                # Fallback
                 fallback = requests.get("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=rating:explicit&limit=100", timeout=20)
                 if fallback.status_code == 200:
                     fallback_data = fallback.json()
@@ -92,20 +90,28 @@ def post_to_bluesky():
     except Exception as e:
         print(f"Image fetch failed (text-only post): {e}")
 
-    # Use model objects for embed (this fixes images showing)
+    # Raw dict embed format (this makes images show correctly with send_post)
     embed = None
     if image_url:
         try:
             img_data = requests.get(image_url, timeout=30).content
-            blob = client.upload_blob(img_data).blob
-            images = [models.AppBskyEmbedImages.Image(alt="Explicit NSFW content", image=blob)]
-            embed = models.AppBskyEmbedImages.Main(images=images)
+            blob = client.upload_blob(img_data)
+            embed = {
+                '$type': 'app.bsky.embed.images',
+                'images': [
+                    {
+                        'alt': 'Explicit NSFW content 🥵',
+                        'image': blob.blob,
+                    }
+                ]
+            }
         except Exception as e:
             print(f"Image upload failed (text-only post): {e}")
 
-    # Send post with proper embed model
+    # Send the post (high-level, auto NSFW labels adult content)
     client.send_post(text=caption, embed=embed)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
+    

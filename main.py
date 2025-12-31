@@ -1,6 +1,6 @@
 import random
 import requests
-from atproto import Client
+from atproto import Client, models
 import os
 from flask import Flask
 
@@ -60,56 +60,50 @@ def post_to_bluesky():
     ]
     caption = random.choice(captions)
 
-    # Improved image fetching - almost always gets an image
+    # Improved image fetching with reliable fallbacks
     image_url = None
     try:
-        # Use a very broad fallback if specific tag fails
         search_tags = tags_str
         if source == "e621":
             url = f"https://e621.net/posts.json?tags={search_tags}&limit=100"
             headers = {'User-Agent': 'BlueskyNSFWBot/1.0'}
             resp = requests.get(url, headers=headers, timeout=20)
-            if resp.status_code == 200:
-                data = resp.json()
-                posts = data.get('posts', [])
-                if posts:
-                    image_url = random.choice(posts)['file']['url']
-                else:
-                    # Fallback to very safe tag
-                    fallback_resp = requests.get("https://e621.net/posts.json?tags=rating:explicit&limit=100", headers=headers, timeout=20)
-                    if fallback_resp.status_code == 200:
-                        fallback_posts = fallback_resp.json().get('posts', [])
-                        if fallback_posts:
-                            image_url = random.choice(fallback_posts)['file']['url']
-        else:  # rule34
+            if resp.status_code == 200 and resp.json().get('posts'):
+                image_url = random.choice(resp.json()['posts'])['file']['url']
+            if not image_url:
+                # Fallback
+                fallback = requests.get("https://e621.net/posts.json?tags=rating:explicit&limit=100", headers=headers, timeout=20)
+                if fallback.status_code == 200 and fallback.json().get('posts'):
+                    image_url = random.choice(fallback.json()['posts'])['file']['url']
+        else:
             url = f"https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags={search_tags}&limit=100"
             resp = requests.get(url, timeout=20)
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, list) and data:
                     image_url = random.choice(data)['file_url']
-                else:
-                    # Fallback to very safe tag
-                    fallback_resp = requests.get("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=rating:explicit&limit=100", timeout=20)
-                    if fallback_resp.status_code == 200:
-                        fallback_data = fallback_resp.json()
-                        if isinstance(fallback_data, list) and fallback_data:
-                            image_url = random.choice(fallback_data)['file_url']
+            if not image_url:
+                # Fallback
+                fallback = requests.get("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=rating:explicit&limit=100", timeout=20)
+                if fallback.status_code == 200:
+                    fallback_data = fallback.json()
+                    if isinstance(fallback_data, list) and fallback_data:
+                        image_url = random.choice(fallback_data)['file_url']
     except Exception as e:
-        print(f"Image fetch failed (will post text only): {e}")
+        print(f"Image fetch failed (text-only post): {e}")
 
-    # Upload image if we have one
+    # Use model objects for embed (this fixes images showing)
     embed = None
     if image_url:
         try:
             img_data = requests.get(image_url, timeout=30).content
             blob = client.upload_blob(img_data).blob
-            images = [{'alt': 'Explicit NSFW content', 'image': blob}]
-            embed = {'$type': 'app.bsky.embed.images', 'images': images}
+            images = [models.AppBskyEmbedImages.Image(alt="Explicit NSFW content", image=blob)]
+            embed = models.AppBskyEmbedImages.Main(images=images)
         except Exception as e:
-            print(f"Image upload failed (posting text only): {e}")
+            print(f"Image upload failed (text-only post): {e}")
 
-    # Send the post - simple high-level method (auto-handles NSFW labeling)
+    # Send post with proper embed model
     client.send_post(text=caption, embed=embed)
 
 if __name__ == '__main__':

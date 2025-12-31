@@ -1,7 +1,7 @@
 services:
   - type: web
-    name: bluesky-bot
+    name: BlueSkyBow
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn main:app
+    startCommand: gunicorn main:app   # Must match your filename exactly
